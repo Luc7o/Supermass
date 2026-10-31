@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Panel | SuperMass Market</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--sol:#FFC21A;--soft:#FFF9EA;--rojo:#D6122B;--vino:#780115;--ink:#1F1416;--muted:#665A5C;--line:#ECE4DD}
+*{box-sizing:border-box}
+body{margin:0;background:#FAF7F2;color:var(--ink);font:400 16px/1.5 "DM Sans",system-ui,sans-serif}
+h1,h2{font-family:"Bricolage Grotesque",sans-serif;margin:0;letter-spacing:-.02em}
+header{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.bar{max-width:1100px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.bar h1{font-size:22px;color:var(--vino)}.bar h1 b{color:var(--rojo)}
+main{max-width:1100px;margin:0 auto;padding:24px 20px 60px}
+button{font:inherit;cursor:pointer}
+.btn{background:var(--rojo);color:#fff;border:0;border-radius:99px;padding:11px 22px;font-weight:700}
+.btn.alt{background:#fff;color:var(--vino);border:1.5px solid var(--vino)}
+.tabs{display:flex;gap:8px;margin-bottom:20px}
+.tab{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:9px 20px;font-weight:700;color:var(--ink)}
+.tab[aria-pressed="true"]{background:var(--vino);color:#fff;border-color:var(--vino)}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;margin-bottom:22px;box-shadow:0 1px 2px rgba(31,20,22,.05)}
+.card h2{font-size:22px;margin-bottom:16px;color:var(--vino)}
+#campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px}
+label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:14px}
+input,select{font:inherit;padding:11px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:400}
+input:focus,select:focus{outline:3px solid var(--sol);border-color:var(--vino)}
+.acts{display:flex;gap:10px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;color:var(--muted);text-transform:none}
+tr.off td{color:#A59A9B}
+.acc{text-align:right}
+.acc button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;margin-left:6px}
+.acc .del{color:var(--rojo)}
+.pill{border:0;border-radius:99px;padding:5px 12px;font-weight:700;font-size:13px;background:#DDF5E3;color:#146B2E}
+tr.off .pill{background:#EEE;color:#777}
+.vacio{text-align:center;color:var(--muted);padding:30px}
+#login{max-width:380px;margin:12vh auto;text-align:center}
+#login h2{margin-bottom:6px}#login p{color:var(--muted);margin:0 0 18px}
+#login input{width:100%;margin-bottom:12px}
+#aviso{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--vino);color:#fff;padding:12px 22px;border-radius:99px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s}
+#aviso.on{opacity:1}#aviso.mal{background:var(--rojo)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<section id="login" class="card" hidden>
+  <h2>Panel de administración</h2>
+  <p>SuperMass Market</p>
+  <form id="fl"><input type="password" id="pw" placeholder="Contraseña" autocomplete="current-password" required><button class="btn" style="width:100%">Entrar</button></form>
+</section>
+
+<div id="app" hidden>
+  <header><div class="bar"><h1>Super<b>Mass</b> · Panel</h1>
+    <div class="acts"><a class="btn alt" href="/" target="_blank" style="text-decoration:none">Ver sitio</a><button class="btn alt" id="salir">Salir</button></div></div></header>
+  <main>
+    <div class="tabs">
+      <button class="tab" data-t="ofertas" aria-pressed="true">Ofertas</button>
+      <button class="tab" data-t="productos" aria-pressed="false">Productos</button>
+    </div>
+    <form class="card" id="f"><h2 id="fh"></h2><div id="campos"></div>
+      <div class="acts"><button class="btn">Guardar</button><button type="button" class="btn alt" id="cancel" hidden>Cancelar</button></div></form>
+    <div class="card"><div class="wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div></div>
+  </main>
+</div>
+<div id="aviso" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const m=v=>v==null?"—":"S/ "+Number(v).toFixed(2);
+let CONF={iconos:[],categorias:[]},tab="ofertas",datos=[],edit=null;
+const CFG={
+  ofertas:{nom:"oferta",act:"activa",cols:[["titulo","Oferta"],["precio","Precio",m],["precio_antes","Antes",m],["etiqueta","Etiqueta"]],
+    campos:()=>[["titulo","Nombre de la oferta","text"],["precio","Precio (S/)","number"],["precio_antes","Precio antes (S/), opcional","number"],["etiqueta","Etiqueta, ej. -20% o 2x1","text"],["icono","Icono","select",CONF.iconos]]},
+  productos:{nom:"producto",act:"activo",cols:[["nombre","Producto"],["categoria","Categoría"],["precio","Precio",m]],
+    campos:()=>[["nombre","Nombre del producto","text"],["categoria","Categoría","select",CONF.categorias],["precio","Precio (S/)","number"]]}
+};
+function aviso(t,mal){const a=$("#aviso");a.textContent=t;a.className="on"+(mal?" mal":"");setTimeout(()=>a.className="",2400)}
+async function api(u,met="GET",body){
+  const r=await fetch(u,{method:met,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401&&u!=="/api/login"){mostrar(false);throw new Error("Inicia sesión")}
+  if(!r.ok)throw new Error(j.error||"Error");return j;
+}
+function mostrar(ok){$("#login").hidden=ok;$("#app").hidden=!ok}
+function form(){
+  const d=edit||{};
+  $("#campos").innerHTML=CFG[tab].campos().map(([k,l,t,o])=>`<label>${l}`+(t==="select"
+    ?`<select name="${k}">${o.map(x=>`<option${d[k]===x?" selected":""}>${esc(x)}</option>`).join("")}</select>`
+    :`<input name="${k}" type="${t}" ${t==="number"?'step="0.01" min="0"':""} value="${esc(d[k]??"")}" ${["titulo","nombre","precio"].includes(k)?"required":""}>`)+`</label>`).join("");
+  $("#fh").textContent=(edit?"Editar ":"Nueva ")+CFG[tab].nom;
+  $("#cancel").hidden=!edit;
+}
+function tabla(){
+  const c=CFG[tab];
+  $("#thead").innerHTML=c.cols.map(x=>`<th>${x[1]}</th>`).join("")+"<th>Estado</th><th></th>";
+  $("#tbody").innerHTML=datos.length?datos.map(r=>`<tr class="${r[c.act]?"":"off"}">`
+    +c.cols.map(([k,,f])=>`<td>${esc(f?f(r[k]):(r[k]??""))}</td>`).join("")
+    +`<td><button class="pill" data-a="t" data-id="${r.id}">${r[c.act]?"Visible":"Oculto"}</button></td>`
+    +`<td class="acc"><button data-a="e" data-id="${r.id}">Editar</button><button class="del" data-a="d" data-id="${r.id}">Eliminar</button></td></tr>`).join("")
+    :`<tr><td colspan="9" class="vacio">Aún no hay registros.</td></tr>`;
+}
+async function cargar(){datos=await api(`/api/${tab}?todos=1`);form();tabla()}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+  tab=b.dataset.t;edit=null;document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-pressed",x===b));cargar();
+});
+$("#f").onsubmit=async e=>{
+  e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+  try{edit?await api(`/api/${tab}/${edit.id}`,"PUT",b):await api(`/api/${tab}`,"POST",b);
+    aviso("Guardado");edit=null;await cargar()}catch(x){aviso(x.message,true)}
+};
+$("#cancel").onclick=()=>{edit=null;form()};
+$("#tbody").onclick=async e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const r=datos.find(x=>x.id==b.dataset.id),act=CFG[tab].act;
+  try{
+    if(b.dataset.a==="e"){edit=r;form();scrollTo({top:0,behavior:"smooth"})}
+    if(b.dataset.a==="t"){await api(`/api/${tab}/${r.id}`,"PUT",{[act]:r[act]?0:1});await cargar()}
+    if(b.dataset.a==="d"&&confirm("¿Eliminar este registro? No se puede deshacer.")){await api(`/api/${tab}/${r.id}`,"DELETE");aviso("Eliminado");await cargar()}
+  }catch(x){aviso(x.message,true)}
+};
+$("#fl").onsubmit=async e=>{
+  e.preventDefault();
+  try{await api("/api/login","POST",{password:$("#pw").value});$("#pw").value="";await iniciar()}catch(x){aviso(x.message,true)}
+};
+$("#salir").onclick=async()=>{await api("/api/logout","POST",{});mostrar(false)};
+async function iniciar(){CONF=await api("/api/config");mostrar(true);await cargar()}
+(async()=>{const r=await api("/api/me");r.admin?iniciar():mostrar(false)})();
+</script>
+</body>
+</html>
