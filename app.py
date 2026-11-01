@@ -1,6 +1,13 @@
-import os, sqlite3, time, hmac
+import os, time, hmac
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+import psycopg
+from psycopg.rows import dict_row
 from functools import wraps
-from flask import Flask, jsonify, request, session, g, abort
+from flask import Flask, jsonify, request, session, g, abort, Response
 
 PROD = os.environ.get("FLASK_ENV") == "production"
 SECRET = os.environ.get("SECRET_KEY")
@@ -8,27 +15,31 @@ PASSWORD = os.environ.get("ADMIN_PASSWORD")
 if PROD and not (SECRET and PASSWORD):
     raise RuntimeError("En producción define SECRET_KEY y ADMIN_PASSWORD")
 SECRET, PASSWORD = SECRET or "dev-secret", PASSWORD or "admin123"
-DB = os.environ.get("DATABASE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "supermass.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("Define DATABASE_URL con la cadena de conexión de Neon")
 
 ICONOS = ["saco", "leche", "carne", "hoja", "pan", "vaso", "brillo", "biberon"]
 CATEGORIAS = ["Frutas y verduras", "Carnes y aves", "Panadería", "Bebidas", "Limpieza", "Bebés", "Abarrotes"]
 CAMPOS = {
     "ofertas": {"titulo": str, "precio": float, "precio_antes": float, "etiqueta": str, "icono": str, "activa": int},
     "productos": {"nombre": str, "categoria": str, "precio": float, "activo": int},
+    "sedes": {"nombre": str, "direccion": str, "horario": str, "activa": int},
 }
-REQ = {"ofertas": ["titulo", "precio"], "productos": ["nombre", "categoria", "precio"]}
-ACT = {"ofertas": "activa", "productos": "activo"}
+REQ = {"ofertas": ["titulo", "precio"], "productos": ["nombre", "categoria", "precio"], "sedes": ["nombre", "direccion"]}
+ACT = {"ofertas": "activa", "productos": "activo", "sedes": "activa"}
+AJUSTES = ["facebook", "instagram", "tiktok", "whatsapp"]
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.secret_key = SECRET
 app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
-                  SESSION_COOKIE_SECURE=PROD, PERMANENT_SESSION_LIFETIME=8 * 3600)
+                  SESSION_COOKIE_SECURE=PROD, PERMANENT_SESSION_LIFETIME=8 * 3600,
+                  MAX_CONTENT_LENGTH=2 * 1024 * 1024)
 
 
 def db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB)
-        g.db.row_factory = sqlite3.Row
+        g.db = psycopg.connect(DATABASE_URL, row_factory=dict_row)
     return g.db
 
 
@@ -39,25 +50,41 @@ def cerrar(_):
         d.close()
 
 
+DDL = """
+CREATE TABLE IF NOT EXISTS ofertas(
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, titulo TEXT NOT NULL, precio DOUBLE PRECISION NOT NULL,
+    precio_antes DOUBLE PRECISION, etiqueta TEXT DEFAULT '', icono TEXT DEFAULT 'saco', activa SMALLINT DEFAULT 1);
+CREATE TABLE IF NOT EXISTS productos(
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, nombre TEXT NOT NULL, categoria TEXT NOT NULL,
+    precio DOUBLE PRECISION NOT NULL, activo SMALLINT DEFAULT 1);
+ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen_id INTEGER;
+CREATE TABLE IF NOT EXISTS imagenes(
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, tipo TEXT NOT NULL, datos BYTEA NOT NULL);
+CREATE TABLE IF NOT EXISTS sedes(
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, nombre TEXT NOT NULL, direccion TEXT NOT NULL,
+    horario TEXT DEFAULT '', activa SMALLINT DEFAULT 1);
+CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL DEFAULT '');"""
+
+
 def init_db():
-    c = sqlite3.connect(DB)
-    c.executescript("""
-    CREATE TABLE IF NOT EXISTS ofertas(id INTEGER PRIMARY KEY, titulo TEXT NOT NULL, precio REAL NOT NULL,
-        precio_antes REAL, etiqueta TEXT DEFAULT '', icono TEXT DEFAULT 'saco', activa INTEGER DEFAULT 1);
-    CREATE TABLE IF NOT EXISTS productos(id INTEGER PRIMARY KEY, nombre TEXT NOT NULL, categoria TEXT NOT NULL,
-        precio REAL NOT NULL, activo INTEGER DEFAULT 1);""")
-    if not c.execute("SELECT 1 FROM ofertas").fetchone():
-        c.executemany("INSERT INTO ofertas(titulo,precio,precio_antes,etiqueta,icono) VALUES(?,?,?,?,?)", [
-            ("Pack limpieza hogar", 18.5, 23.0, "Nuevo", "brillo"), ("Pollo fresco por kg", 9.9, 11.6, "-15%", "carne"),
-            ("Leche evaporada", 3.8, 7.6, "2x1", "leche"), ("Arroz extra 5 kg", 21.9, 27.4, "-20%", "saco")])
-        c.executemany("INSERT INTO productos(nombre,categoria,precio) VALUES(?,?,?)", [
-            ("Papa blanca 1 kg", "Frutas y verduras", 3.2), ("Plátano de seda 1 kg", "Frutas y verduras", 4.5),
-            ("Pechuga de pollo 1 kg", "Carnes y aves", 14.9), ("Pan francés x10", "Panadería", 5.0),
-            ("Gaseosa 3 L", "Bebidas", 9.5), ("Agua sin gas 625 ml", "Bebidas", 1.5),
-            ("Detergente 900 g", "Limpieza", 12.9), ("Pañales talla M x30", "Bebés", 39.9),
-            ("Aceite vegetal 1 L", "Abarrotes", 10.9), ("Fideos spaghetti 500 g", "Abarrotes", 3.9)])
-        c.commit()
-    c.close()
+    with psycopg.connect(DATABASE_URL) as c:
+        c.execute(DDL)
+        if not c.execute("SELECT 1 FROM ofertas LIMIT 1").fetchone():
+            with c.cursor() as cur:
+                cur.executemany("INSERT INTO ofertas(titulo,precio,precio_antes,etiqueta,icono) VALUES(%s,%s,%s,%s,%s)", [
+                    ("Pack limpieza hogar", 18.5, 23.0, "Nuevo", "brillo"), ("Pollo fresco por kg", 9.9, 11.6, "-15%", "carne"),
+                    ("Leche evaporada", 3.8, 7.6, "2x1", "leche"), ("Arroz extra 5 kg", 21.9, 27.4, "-20%", "saco")])
+                cur.executemany("INSERT INTO productos(nombre,categoria,precio) VALUES(%s,%s,%s)", [
+                    ("Papa blanca 1 kg", "Frutas y verduras", 3.2), ("Plátano de seda 1 kg", "Frutas y verduras", 4.5),
+                    ("Pechuga de pollo 1 kg", "Carnes y aves", 14.9), ("Pan francés x10", "Panadería", 5.0),
+                    ("Gaseosa 3 L", "Bebidas", 9.5), ("Agua sin gas 625 ml", "Bebidas", 1.5),
+                    ("Detergente 900 g", "Limpieza", 12.9), ("Pañales talla M x30", "Bebés", 39.9),
+                    ("Aceite vegetal 1 L", "Abarrotes", 10.9), ("Fideos spaghetti 500 g", "Abarrotes", 3.9)])
+        if not c.execute("SELECT 1 FROM sedes LIMIT 1").fetchone():
+            c.cursor().executemany("INSERT INTO sedes(nombre,direccion) VALUES(%s,%s)", [
+                ("SuperMass Prolongación Trujillo", "Prolongación Trujillo 950, Huancayo"),
+                ("SuperMass Ricardo Menéndez", "Jr. Ricardo Menéndez 1099, Huancayo"),
+                ("SuperMass Huáscar", "Jr. Huáscar 702, Huancayo")])
 
 
 init_db()
@@ -122,6 +149,7 @@ def chk(t):
 
 @app.errorhandler(400)
 @app.errorhandler(404)
+@app.errorhandler(413)
 def err(e):
     return jsonify(error=getattr(e, "description", "Error")), e.code
 
@@ -147,7 +175,7 @@ def listar(t):
     q = f"SELECT * FROM {t}"
     if not (request.args.get("todos") and session.get("admin")):
         q += f" WHERE {ACT[t]}=1"
-    return jsonify([dict(r) for r in db().execute(q + " ORDER BY id DESC")])
+    return jsonify(db().execute(q + (" ORDER BY id" if t == "sedes" else " ORDER BY id DESC")).fetchall())
 
 
 @app.post("/api/<t>")
@@ -155,9 +183,10 @@ def listar(t):
 def crear(t):
     chk(t)
     d = cuerpo(t)
-    cur = db().execute(f"INSERT INTO {t}({','.join(d)}) VALUES({','.join('?' * len(d))})", list(d.values()))
+    nuevo = db().execute(f"INSERT INTO {t}({','.join(d)}) VALUES({','.join(['%s'] * len(d))}) RETURNING id",
+                         list(d.values())).fetchone()
     db().commit()
-    return jsonify(id=cur.lastrowid), 201
+    return jsonify(id=nuevo["id"]), 201
 
 
 @app.put("/api/<t>/<int:i>")
@@ -166,7 +195,7 @@ def editar(t, i):
     chk(t)
     d = cuerpo(t, parcial=True)
     if d:
-        db().execute(f"UPDATE {t} SET {','.join(k + '=?' for k in d)} WHERE id=?", list(d.values()) + [i])
+        db().execute(f"UPDATE {t} SET {','.join(k + '=%s' for k in d)} WHERE id=%s", list(d.values()) + [i])
         db().commit()
     return jsonify(ok=True)
 
@@ -175,7 +204,94 @@ def editar(t, i):
 @admin
 def borrar(t, i):
     chk(t)
-    db().execute(f"DELETE FROM {t} WHERE id=?", (i,))
+    if t == "productos":
+        f = db().execute("SELECT imagen_id FROM productos WHERE id=%s", (i,)).fetchone()
+        if f and f["imagen_id"]:
+            db().execute("DELETE FROM imagenes WHERE id=%s", (f["imagen_id"],))
+    db().execute(f"DELETE FROM {t} WHERE id=%s", (i,))
+    db().commit()
+    return jsonify(ok=True)
+
+
+def tipo_imagen(b):
+    if b.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if b.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if b.startswith(b"RIFF") and b[8:12] == b"WEBP":
+        return "image/webp"
+
+
+@app.post("/api/productos/<int:i>/imagen")
+@admin
+def subir_imagen(i):
+    f = request.files.get("imagen")
+    datos = f.read() if f else b""
+    tipo = tipo_imagen(datos)
+    if not tipo or len(datos) > 1_500_000:
+        abort(400, "Sube una imagen JPG, PNG o WebP de hasta 1,5 MB")
+    d = db()
+    fila = d.execute("SELECT imagen_id FROM productos WHERE id=%s", (i,)).fetchone()
+    if not fila:
+        abort(404, "Producto no encontrado")
+    nuevo = d.execute("INSERT INTO imagenes(tipo,datos) VALUES(%s,%s) RETURNING id", (tipo, datos)).fetchone()["id"]
+    d.execute("UPDATE productos SET imagen_id=%s WHERE id=%s", (nuevo, i))
+    if fila["imagen_id"]:
+        d.execute("DELETE FROM imagenes WHERE id=%s", (fila["imagen_id"],))
+    d.commit()
+    return jsonify(imagen_id=nuevo)
+
+
+@app.delete("/api/productos/<int:i>/imagen")
+@admin
+def quitar_imagen(i):
+    d = db()
+    fila = d.execute("SELECT imagen_id FROM productos WHERE id=%s", (i,)).fetchone()
+    if fila and fila["imagen_id"]:
+        d.execute("UPDATE productos SET imagen_id=NULL WHERE id=%s", (i,))
+        d.execute("DELETE FROM imagenes WHERE id=%s", (fila["imagen_id"],))
+        d.commit()
+    return jsonify(ok=True)
+
+
+@app.get("/api/img/<int:i>")
+def ver_imagen(i):
+    r = db().execute("SELECT tipo,datos FROM imagenes WHERE id=%s", (i,)).fetchone()
+    if not r:
+        abort(404)
+    return Response(bytes(r["datos"]), mimetype=r["tipo"],
+                    headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"})
+
+
+@app.get("/api/ajustes")
+def ver_ajustes():
+    d = {k: "" for k in AJUSTES}
+    for r in db().execute("SELECT clave,valor FROM ajustes").fetchall():
+        if r["clave"] in d:
+            d[r["clave"]] = r["valor"]
+    return jsonify(d)
+
+
+@app.put("/api/ajustes")
+@admin
+def guardar_ajustes():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        abort(400, "Se esperaba JSON")
+    vals = {}
+    for k in AJUSTES:
+        if k not in data:
+            continue
+        v = str(data[k]).strip()[:200]
+        if k == "whatsapp":
+            v = "".join(ch for ch in v if ch.isdigit())
+            if v and not 8 <= len(v) <= 15:
+                abort(400, "WhatsApp: escribe solo números con código de país, ej. 51987654321")
+        elif v and not v.startswith("https://"):
+            abort(400, f"{k.capitalize()}: el enlace debe empezar con https://")
+        vals[k] = v
+    for k, v in vals.items():
+        db().execute("INSERT INTO ajustes(clave,valor) VALUES(%s,%s) ON CONFLICT(clave) DO UPDATE SET valor=EXCLUDED.valor", (k, v))
     db().commit()
     return jsonify(ok=True)
 

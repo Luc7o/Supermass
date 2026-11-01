@@ -18,31 +18,33 @@ main{max-width:1100px;margin:0 auto;padding:24px 20px 60px}
 button{font:inherit;cursor:pointer}
 .btn{background:var(--rojo);color:#fff;border:0;border-radius:99px;padding:11px 22px;font-weight:700}
 .btn.alt{background:#fff;color:var(--vino);border:1.5px solid var(--vino)}
-.tabs{display:flex;gap:8px;margin-bottom:20px}
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
 .tab{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:9px 20px;font-weight:700;color:var(--ink)}
 .tab[aria-pressed="true"]{background:var(--vino);color:#fff;border-color:var(--vino)}
 .card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;margin-bottom:22px;box-shadow:0 1px 2px rgba(31,20,22,.05)}
 .card h2{font-size:22px;margin-bottom:16px;color:var(--vino)}
-#campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px}
+.campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px}
 label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:14px}
 input,select{font:inherit;padding:11px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:400}
 input:focus,select:focus{outline:3px solid var(--sol);border-color:var(--vino)}
 .acts{display:flex;gap:10px}
+.nota{color:var(--muted);font-size:14px;margin:0 0 16px}
 .wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{font-size:13px;color:var(--muted);text-transform:none}
+th{font-size:13px;color:var(--muted)}
 tr.off td{color:#A59A9B}
 .acc{text-align:right}
 .acc button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px;margin-left:6px}
 .acc .del{color:var(--rojo)}
+.th{width:48px;height:48px;border-radius:10px;object-fit:cover;display:grid;place-items:center;background:var(--soft);color:var(--muted)}
 .pill{border:0;border-radius:99px;padding:5px 12px;font-weight:700;font-size:13px;background:#DDF5E3;color:#146B2E}
 tr.off .pill{background:#EEE;color:#777}
 .vacio{text-align:center;color:var(--muted);padding:30px}
 #login{max-width:380px;margin:12vh auto;text-align:center}
 #login h2{margin-bottom:6px}#login p{color:var(--muted);margin:0 0 18px}
 #login input{width:100%;margin-bottom:12px}
-#aviso{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--vino);color:#fff;padding:12px 22px;border-radius:99px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s}
+#aviso{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--vino);color:#fff;padding:12px 22px;border-radius:99px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
 #aviso.on{opacity:1}#aviso.mal{background:var(--rojo)}
 [hidden]{display:none!important}
 </style>
@@ -58,13 +60,19 @@ tr.off .pill{background:#EEE;color:#777}
   <header><div class="bar"><h1>Super<b>Mass</b> · Panel</h1>
     <div class="acts"><a class="btn alt" href="/" target="_blank" style="text-decoration:none">Ver sitio</a><button class="btn alt" id="salir">Salir</button></div></div></header>
   <main>
-    <div class="tabs">
+    <div class="tabs" id="tabs">
       <button class="tab" data-t="ofertas" aria-pressed="true">Ofertas</button>
       <button class="tab" data-t="productos" aria-pressed="false">Productos</button>
+      <button class="tab" data-t="sedes" aria-pressed="false">Sedes</button>
+      <button class="tab" data-t="ajustes" aria-pressed="false">Redes y contacto</button>
     </div>
-    <form class="card" id="f"><h2 id="fh"></h2><div id="campos"></div>
+    <form class="card" id="f"><h2 id="fh"></h2><div class="campos" id="campos"></div>
       <div class="acts"><button class="btn">Guardar</button><button type="button" class="btn alt" id="cancel" hidden>Cancelar</button></div></form>
-    <div class="card"><div class="wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div></div>
+    <div class="card" id="tc"><div class="wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div></div>
+    <form class="card" id="fa" hidden><h2>Redes sociales y contacto</h2>
+      <p class="nota">Si dejas un campo vacío, ese botón se oculta en el sitio. Los enlaces deben empezar con https://</p>
+      <div class="campos" id="camposa"></div><button class="btn">Guardar</button></form>
+    <input type="file" id="file" accept="image/*" hidden>
   </main>
 </div>
 <div id="aviso" role="status"></div>
@@ -73,14 +81,18 @@ tr.off .pill{background:#EEE;color:#777}
 const $=s=>document.querySelector(s);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const m=v=>v==null?"—":"S/ "+Number(v).toFixed(2);
-let CONF={iconos:[],categorias:[]},tab="ofertas",datos=[],edit=null;
+let CONF={iconos:[],categorias:[]},tab="ofertas",datos=[],edit=null,fotoId=null;
 const CFG={
   ofertas:{nom:"oferta",act:"activa",cols:[["titulo","Oferta"],["precio","Precio",m],["precio_antes","Antes",m],["etiqueta","Etiqueta"]],
     campos:()=>[["titulo","Nombre de la oferta","text"],["precio","Precio (S/)","number"],["precio_antes","Precio antes (S/), opcional","number"],["etiqueta","Etiqueta, ej. -20% o 2x1","text"],["icono","Icono","select",CONF.iconos]]},
-  productos:{nom:"producto",act:"activo",cols:[["nombre","Producto"],["categoria","Categoría"],["precio","Precio",m]],
-    campos:()=>[["nombre","Nombre del producto","text"],["categoria","Categoría","select",CONF.categorias],["precio","Precio (S/)","number"]]}
+  productos:{nom:"producto",act:"activo",foto:true,cols:[["nombre","Producto"],["categoria","Categoría"],["precio","Precio",m]],
+    campos:()=>[["nombre","Nombre del producto","text"],["categoria","Categoría","select",CONF.categorias],["precio","Precio (S/)","number"]]},
+  sedes:{nom:"sede",act:"activa",cols:[["nombre","Sede"],["direccion","Dirección"],["horario","Horario"]],
+    campos:()=>[["nombre","Nombre de la sede","text"],["direccion","Dirección (con distrito)","text"],["horario","Horario, ej. Lunes a domingo 7:00 – 22:00","text"]]}
 };
-function aviso(t,mal){const a=$("#aviso");a.textContent=t;a.className="on"+(mal?" mal":"");setTimeout(()=>a.className="",2400)}
+const AJ=[["facebook","Facebook (enlace)","url","https://www.facebook.com/tu-pagina"],["instagram","Instagram (enlace)","url","https://www.instagram.com/tu-cuenta"],
+  ["tiktok","TikTok (enlace)","url","https://www.tiktok.com/@tu-cuenta"],["whatsapp","WhatsApp (número con código de país)","tel","51987654321"]];
+function aviso(t,mal){const a=$("#aviso");a.textContent=t;a.className="on"+(mal?" mal":"");setTimeout(()=>a.className="",2800)}
 async function api(u,met="GET",body){
   const r=await fetch(u,{method:met,headers:body?{"Content-Type":"application/json"}:{},body:body?JSON.stringify(body):undefined});
   const j=await r.json().catch(()=>({}));
@@ -92,34 +104,68 @@ function form(){
   const d=edit||{};
   $("#campos").innerHTML=CFG[tab].campos().map(([k,l,t,o])=>`<label>${l}`+(t==="select"
     ?`<select name="${k}">${o.map(x=>`<option${d[k]===x?" selected":""}>${esc(x)}</option>`).join("")}</select>`
-    :`<input name="${k}" type="${t}" ${t==="number"?'step="0.01" min="0"':""} value="${esc(d[k]??"")}" ${["titulo","nombre","precio"].includes(k)?"required":""}>`)+`</label>`).join("");
+    :`<input name="${k}" type="${t}" ${t==="number"?'step="0.01" min="0"':""} value="${esc(d[k]??"")}" ${["titulo","nombre","precio","direccion"].includes(k)?"required":""}>`)+`</label>`).join("");
   $("#fh").textContent=(edit?"Editar ":"Nueva ")+CFG[tab].nom;
   $("#cancel").hidden=!edit;
 }
 function tabla(){
   const c=CFG[tab];
-  $("#thead").innerHTML=c.cols.map(x=>`<th>${x[1]}</th>`).join("")+"<th>Estado</th><th></th>";
+  $("#thead").innerHTML=(c.foto?"<th>Foto</th>":"")+c.cols.map(x=>`<th>${x[1]}</th>`).join("")+"<th>Estado</th><th></th>";
   $("#tbody").innerHTML=datos.length?datos.map(r=>`<tr class="${r[c.act]?"":"off"}">`
+    +(c.foto?`<td>${r.imagen_id?`<img class="th" src="/api/img/${r.imagen_id}" alt="">`:'<span class="th">—</span>'}</td>`:"")
     +c.cols.map(([k,,f])=>`<td>${esc(f?f(r[k]):(r[k]??""))}</td>`).join("")
     +`<td><button class="pill" data-a="t" data-id="${r.id}">${r[c.act]?"Visible":"Oculto"}</button></td>`
-    +`<td class="acc"><button data-a="e" data-id="${r.id}">Editar</button><button class="del" data-a="d" data-id="${r.id}">Eliminar</button></td></tr>`).join("")
+    +`<td class="acc">`+(c.foto?`<button data-a="f" data-id="${r.id}">${r.imagen_id?"Cambiar foto":"Subir foto"}</button>`+(r.imagen_id?`<button data-a="q" data-id="${r.id}">Quitar foto</button>`:""):"")
+    +`<button data-a="e" data-id="${r.id}">Editar</button><button class="del" data-a="d" data-id="${r.id}">Eliminar</button></td></tr>`).join("")
     :`<tr><td colspan="9" class="vacio">Aún no hay registros.</td></tr>`;
 }
-async function cargar(){datos=await api(`/api/${tab}?todos=1`);form();tabla()}
+async function cargar(){
+  const aj=tab==="ajustes";
+  $("#f").hidden=aj;$("#tc").hidden=aj;$("#fa").hidden=!aj;
+  if(aj){
+    const a=await api("/api/ajustes");
+    $("#camposa").innerHTML=AJ.map(([k,l,t,p])=>`<label>${l}<input name="${k}" type="${t}" placeholder="${p}" value="${esc(a[k]||"")}"></label>`).join("");
+    return;
+  }
+  datos=await api(`/api/${tab}?todos=1`);form();tabla();
+}
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
-  tab=b.dataset.t;edit=null;document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-pressed",x===b));cargar();
+  tab=b.dataset.t;edit=null;document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  cargar().catch(x=>aviso(x.message,true));
 });
 $("#f").onsubmit=async e=>{
   e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
   try{edit?await api(`/api/${tab}/${edit.id}`,"PUT",b):await api(`/api/${tab}`,"POST",b);
     aviso("Guardado");edit=null;await cargar()}catch(x){aviso(x.message,true)}
 };
+$("#fa").onsubmit=async e=>{
+  e.preventDefault();
+  try{await api("/api/ajustes","PUT",Object.fromEntries(new FormData(e.target)));aviso("Guardado")}catch(x){aviso(x.message,true)}
+};
 $("#cancel").onclick=()=>{edit=null;form()};
+async function reducir(file){
+  const bmp=await createImageBitmap(file),k=Math.min(1,900/Math.max(bmp.width,bmp.height));
+  const c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+  const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,0,0,c.width,c.height);
+  return new Promise(r=>c.toBlob(r,"image/jpeg",.85));
+}
+$("#file").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f||!fotoId)return;
+  try{
+    const blob=await reducir(f),fd=new FormData();fd.append("imagen",blob,"foto.jpg");
+    const r=await fetch(`/api/productos/${fotoId}/imagen`,{method:"POST",body:fd});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||"No se pudo subir la foto");
+    aviso("Foto guardada");await cargar();
+  }catch(x){aviso(x.message,true)}
+};
 $("#tbody").onclick=async e=>{
   const b=e.target.closest("button");if(!b)return;
   const r=datos.find(x=>x.id==b.dataset.id),act=CFG[tab].act;
   try{
     if(b.dataset.a==="e"){edit=r;form();scrollTo({top:0,behavior:"smooth"})}
+    if(b.dataset.a==="f"){fotoId=r.id;$("#file").click()}
+    if(b.dataset.a==="q"){await api(`/api/productos/${r.id}/imagen`,"DELETE");aviso("Foto quitada");await cargar()}
     if(b.dataset.a==="t"){await api(`/api/${tab}/${r.id}`,"PUT",{[act]:r[act]?0:1});await cargar()}
     if(b.dataset.a==="d"&&confirm("¿Eliminar este registro? No se puede deshacer.")){await api(`/api/${tab}/${r.id}`,"DELETE");aviso("Eliminado");await cargar()}
   }catch(x){aviso(x.message,true)}

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light">
 <title>SuperMass Market | Tu tienda de siempre, ahora más cerca</title>
-<meta name="description" content="SuperMass Market: 3 sedes en Huancayo con precios bajos y ofertas cada semana.">
+<meta name="description" content="SuperMass Market: sedes en Huancayo con precios bajos y ofertas cada semana.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=DM+Sans:wght@400;500;700;800&family=Lobster&display=swap" rel="stylesheet">
 <style>
@@ -194,6 +194,7 @@ footer ul a:hover{color:var(--sol)}
 .prod h3{font-size:18px;line-height:1.2}
 .prod small{color:var(--muted)}
 .prod .price{font:800 26px/1.1 "Bricolage Grotesque",sans-serif;color:var(--rojo);margin-top:4px}
+.pimg{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;margin-bottom:8px;background:var(--soft)}
 </style>
 </head>
 <body>
@@ -236,7 +237,7 @@ footer ul a:hover{color:var(--sol)}
       <div class="wrap">
         <div>
           <h1>Lo que necesitas, <span>en la sede más cercana.</span></h1>
-          <p>SuperMass Market tiene 3 sedes en Huancayo, cerca de tu casa, tu trabajo y tu ruta. Precios bajos todos los días y ofertas que cambian cada semana.</p>
+          <p>SuperMass Market tiene sedes en Huancayo, cerca de tu casa, tu trabajo y tu ruta. Precios bajos todos los días y ofertas que cambian cada semana.</p>
           <div class="ctas">
             <a class="btn" href="#sedes">Buscar mi sede</a>
             <a class="btn alt" href="#ofertas">Ver ofertas</a>
@@ -313,7 +314,7 @@ footer ul a:hover{color:var(--sol)}
 
     <div class="stats">
       <div class="wrap">
-        <div><strong>3</strong><span>sedes en Huancayo</span></div>
+        <div><strong id="nsedes">3</strong><span>sedes en Huancayo</span></div>
         <div><strong>3000+</strong><span>productos disponibles</span></div>
         <div><strong>7 días</strong><span>abiertos a la semana</span></div>
         <div><strong>100%</strong><span>precio claro en góndola</span></div>
@@ -323,7 +324,7 @@ footer ul a:hover{color:var(--sol)}
     <div class="wrap">
       <div class="sec">
         <div class="row">
-          <div><h2>Nuestras 3 sedes</h2><p class="sub">Tres tiendas en Huancayo para estar siempre cerca.</p></div>
+          <div><h2>Nuestras sedes</h2><p class="sub">Tiendas en Huancayo para estar siempre cerca.</p></div>
           <a class="more" href="#sedes">Ver mapa de sedes</a>
         </div>
         <div class="grid" id="prev"></div>
@@ -360,16 +361,14 @@ footer ul a:hover{color:var(--sol)}
   <div class="view" id="v-sedes">
     <div class="pagehead"><div class="wrap">
       <h1>Nuestras sedes</h1>
-      <p>Encuentra nuestras tres tiendas de Huancayo en el mapa.</p>
+      <p>Encuentra nuestras tiendas de Huancayo en el mapa.</p>
     </div></div>
     <div class="body"><div class="wrap">
       <div class="mapwrap">
         <div class="grid" id="grid" aria-live="polite"></div>
         <div class="map">
-          <div class="tabs" role="group" aria-label="Tipo de mapa"><button class="chip" id="tg" aria-pressed="true">Google Maps</button><button class="chip" id="ts" aria-pressed="false">Mapa referencial</button></div>
           <div id="gm"><iframe id="gframe" title="Mapa de Google Maps de la sede elegida" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div>
-          <div id="mapa" hidden></div>
-          <p class="note">Elige una sede de la lista para verla en Google Maps. Si el mapa no carga, usa "Mapa referencial" o el botón "Cómo llegar".</p>
+          <p class="note">Elige una sede de la lista para verla en el mapa.</p>
         </div>
       </div>
     </div></div>
@@ -439,66 +438,34 @@ footer ul a:hover{color:var(--sol)}
 </footer>
 
 <script>
-// Datos de las sedes. Las posiciones x,y son referenciales sobre el mapa.
-const SEDES=[
-  {n:"SuperMass Prolongación Trujillo",c:"Prol. Trujillo",d:"Prolongación Trujillo 950, Huancayo",h:"Todos los días 7:00 – 22:00",x:150,y:300},
-  {n:"SuperMass Ricardo Menéndez",c:"Ricardo Menéndez",d:"Jr. Ricardo Menéndez 1099, Huancayo",h:"Todos los días 7:00 – 22:00",x:430,y:130},
-  {n:"SuperMass Huáscar",c:"Huáscar",d:"Jr. Huáscar 702, Huancayo",h:"Todos los días 7:00 – 22:00",x:330,y:270}
-];
-const grid=document.getElementById("grid"),prev=document.getElementById("prev"),mapa=document.getElementById("mapa");
-const gmaps=s=>"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(s.d+", Junín, Perú");
+// Sedes desde el backend + Google Maps
+const grid=document.getElementById("grid"),prev=document.getElementById("prev"),gframe=document.getElementById("gframe");
+let SEDES=[],gsrc="";
+const gmaps=s=>"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(s.direccion+", Junín, Perú");
 function tarjeta(s,i,sel){
   const a=document.createElement("article");a.className="sede";a.dataset.i=i;
-  a.innerHTML='<h3>'+s.n+'</h3><p>'+s.d+'</p><p class="open">'+s.h+'</p><a class="go" href="'+gmaps(s)+'" target="_blank" rel="noopener">Cómo llegar</a>';
+  a.innerHTML='<h3>'+esc(s.nombre)+'</h3><p>'+esc(s.direccion)+'</p>'+(s.horario?'<p class="open">'+esc(s.horario)+'</p>':'')
+    +'<a class="go" href="'+gmaps(s)+'" target="_blank" rel="noopener">Cómo llegar</a>';
   if(sel)a.addEventListener("click",()=>elegir(i));
   return a;
 }
-SEDES.forEach((s,i)=>{grid.appendChild(tarjeta(s,i,true));prev.appendChild(tarjeta(s,i,false))});
-
-// Mapa referencial en SVG (sin imágenes externas)
-(function(){
-  const NS="http://www.w3.org/2000/svg";
-  let m='<svg viewBox="0 0 600 420" role="img" aria-label="Mapa referencial de las sedes en Huancayo">';
-  m+='<rect width="600" height="420" fill="#FBF3DC"/>';
-  for(let r=0;r<5;r++)for(let c=0;c<8;c++){m+='<rect x="'+(18+c*72)+'" y="'+(16+r*80)+'" width="58" height="64" rx="8" fill="#F3E6BE"/>';}
-  m+='<path d="M-10 380 C120 400 220 330 330 360 S520 400 620 330" fill="none" stroke="#9CC9E8" stroke-width="16" stroke-linecap="round"/>';
-  m+='<text x="470" y="408" font-size="12" fill="#4F8DB5" font-family="DM Sans,sans-serif" font-style="italic">Río Mantaro</text>';
-  m+='<path d="M0 230 L600 200 M240 0 L300 420 M0 90 L600 120" stroke="#fff" stroke-width="10" fill="none"/>';
-  m+='<rect x="268" y="196" width="46" height="34" rx="6" fill="#BFE3A8"/>';
-  m+='<text x="291" y="248" text-anchor="middle" font-size="11" fill="#5C6B3A" font-family="DM Sans,sans-serif" font-weight="700">Plaza Constitución</text>';
-  SEDES.forEach((s,i)=>{
-    m+='<g class="pin" tabindex="0" role="button" aria-label="'+s.n+'" data-i="'+i+'" transform="translate('+s.x+','+s.y+')">'
-      +'<g class="pb"><path d="M0 0C-6 -12 -20 -24 -20 -40A20 20 0 1 1 20 -40C20 -24 6 -12 0 0Z" fill="#D6122B" stroke="#780115" stroke-width="3"/>'
-      +'<circle cx="0" cy="-40" r="11" fill="#fff"/><text x="0" y="-35" text-anchor="middle" font-size="15" font-weight="800" fill="#780115" font-family="Bricolage Grotesque,sans-serif">'+(i+1)+'</text></g>'
-      +'<text x="0" y="20" text-anchor="middle" font-size="13" font-weight="700" fill="#780115" stroke="#fff" stroke-width="4" paint-order="stroke" font-family="DM Sans,sans-serif">'+s.c+'</text></g>';
-  });
-  m+='</svg>';
-  mapa.innerHTML=m;
-  mapa.querySelectorAll(".pin").forEach(p=>{
-    p.addEventListener("click",()=>elegir(+p.dataset.i));
-    p.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();elegir(+p.dataset.i)}});
-  });
-})();
-const gframe=document.getElementById("gframe");let gsrc="";
 function elegir(i){
-  const u="https://www.google.com/maps?q="+encodeURIComponent(SEDES[i].d+", Junín, Perú")+"&output=embed&hl=es";
-  if(u!==gsrc){gsrc=u;gframe.src=u}
   grid.querySelectorAll(".sede").forEach(c=>c.classList.toggle("sel",+c.dataset.i===i));
-  mapa.querySelectorAll(".pin").forEach(p=>{
-    const on=+p.dataset.i===i;
-    p.querySelector(".pb").setAttribute("transform",on?"scale(1.3)":"scale(1)");
-    p.querySelector("path").setAttribute("fill",on?"#FFC21A":"#D6122B");
-    if(on)p.parentNode.appendChild(p);
-  });
+  const u="https://www.google.com/maps?q="+encodeURIComponent(SEDES[i].direccion+", Junín, Perú")+"&output=embed&hl=es";
+  if(u!==gsrc){gsrc=u;gframe.src=u}
 }
-elegir(0);
-function verMapa(g){
-  document.getElementById("gm").hidden=!g;mapa.hidden=g;
-  document.getElementById("tg").setAttribute("aria-pressed",g);
-  document.getElementById("ts").setAttribute("aria-pressed",!g);
-}
-document.getElementById("tg").onclick=()=>verMapa(true);
-document.getElementById("ts").onclick=()=>verMapa(false);
+(async()=>{
+  const r=await datos("sedes");
+  if(r===null||!r.length){
+    const m='<p class="empty">'+(r===null?'No pudimos cargar las sedes. Intenta de nuevo más tarde.':'Pronto publicaremos nuestras sedes.')+'</p>';
+    grid.innerHTML=m;prev.innerHTML=m;return;
+  }
+  SEDES=r;
+  const n=document.getElementById("nsedes");if(n)n.textContent=r.length;
+  r.forEach((s,i)=>grid.appendChild(tarjeta(s,i,true)));
+  r.slice(0,3).forEach((s,i)=>prev.appendChild(tarjeta(s,i,false)));
+  elegir(0);
+})();
 
 // Redes sociales
 const REDES=[
@@ -510,6 +477,21 @@ document.querySelectorAll(".socials").forEach(c=>REDES.forEach(([n,u,i])=>{
   const a=document.createElement("a");a.href=u;a.target="_blank";a.rel="noopener";
   a.setAttribute("aria-label",n);a.title=n;a.innerHTML=i+"<span>"+n+"</span>";c.appendChild(a);
 }));
+
+// Enlaces de redes y WhatsApp desde el panel
+(async()=>{
+  const a=await datos("ajustes");if(!a)return;
+  document.querySelectorAll(".socials a").forEach(el=>{
+    const v=a[el.getAttribute("aria-label").toLowerCase()];
+    if(v)el.href=v;else el.style.display="none";
+  });
+  document.querySelectorAll(".socials.lg").forEach(c=>{
+    if(![...c.children].some(x=>x.style.display!=="none"))(c.closest(".sec")||c.parentElement).hidden=true;
+  });
+  document.querySelectorAll('a[href^="https://wa.me/"]').forEach(el=>{
+    if(a.whatsapp)el.href="https://wa.me/"+a.whatsapp;else el.style.display="none";
+  });
+})();
 
 const IC={
   hoja:'<path d="M5 19c0-8 5-13 14-14 0 9-5 14-14 14z"/><path d="M5 19l7-7"/>',
@@ -546,7 +528,7 @@ async function datos(t){try{const r=await fetch("/api/"+t);if(!r.ok)throw 0;retu
   function pintarProd(){
     if(pr===null){box.innerHTML='<p class="empty">No pudimos cargar los productos. Intenta de nuevo más tarde.</p>';return}
     const l=pr.filter(p=>cat==="Todas"||p.categoria===cat);
-    box.innerHTML=l.length?l.map(p=>'<article class="prod"><span class="cic"><i data-ic="x">'+ico(CI[p.categoria])+'</i></span><h3>'+esc(p.nombre)
+    box.innerHTML=l.length?l.map(p=>'<article class="prod">'+(p.imagen_id?'<img class="pimg" src="/api/img/'+p.imagen_id+'" alt="'+esc(p.nombre)+'" loading="lazy">':'<span class="cic"><i data-ic="x">'+ico(CI[p.categoria])+'</i></span>')+'<h3>'+esc(p.nombre)
       +'</h3><small>'+esc(p.categoria)+'</small><div class="price">'+S(p.precio)+'</div></article>').join(""):'<p class="empty">No hay productos en esta categoría.</p>';
   }
   function pintarChips(){
