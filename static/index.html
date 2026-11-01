@@ -540,6 +540,29 @@ async function datos(t){try{const r=await fetch("/api/"+t);if(!r.ok)throw 0;retu
   pintarChips();pintarProd();
 })();
 
+// Estadísticas de visitas (sin cookies ni datos personales)
+let _entrada=true;
+const _nt=(()=>{try{if(location.search.includes("notrack"))localStorage.setItem("sm_notrack","1");return localStorage.getItem("sm_notrack")==="1"||navigator.doNotTrack==="1"}catch(e){return navigator.doNotTrack==="1"}})();
+function pagActual(){const p=location.hash.replace("#","");return PAGINAS.includes(p)?p:"inicio"}
+function track(tipo,pagina,extra){
+  if(_nt)return;
+  const d={tipo,pagina,extra:extra||""};
+  if(tipo==="vista"&&_entrada){d.entrada=true;d.ref=document.referrer||"";_entrada=false}
+  try{
+    const b=new Blob([JSON.stringify(d)],{type:"application/json"});
+    if(!(navigator.sendBeacon&&navigator.sendBeacon("/api/track",b)))
+      fetch("/api/track",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d),keepalive:true});
+  }catch(e){}
+}
+document.addEventListener("click",e=>{
+  const a=e.target.closest("a,.sede");if(!a)return;
+  const pg=pagActual();
+  if(a.matches('a[href^="https://wa.me/"]'))return track("clic",pg,a.textContent.includes("Ofrecer")?"whatsapp_local":"whatsapp");
+  if(a.closest(".socials")&&a.getAttribute("aria-label"))return track("clic",pg,a.getAttribute("aria-label").toLowerCase());
+  if(a.matches(".sede .go"))return track("clic",pg,"como_llegar:"+a.closest(".sede").querySelector("h3").textContent);
+  if(a.classList.contains("sede")&&a.closest("#grid"))track("clic",pg,"ver_sede:"+a.querySelector("h3").textContent);
+});
+
 // Navegación entre páginas (hash simple: #inicio, #sedes, ...)
 const PAGINAS=["inicio","sedes","ofertas","productos","contacto"];
 const TITULOS={inicio:"Tu tienda de siempre, ahora más cerca",sedes:"Nuestras sedes",ofertas:"Ofertas de la semana",productos:"Productos",contacto:"Contacto"};
@@ -551,6 +574,7 @@ function ir(){
     if(a.dataset.link===p)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");
   });
   document.title="SuperMass Market | "+TITULOS[p];
+  track("vista",p);
   window.scrollTo(0,0);
 }
 window.addEventListener("hashchange",ir);

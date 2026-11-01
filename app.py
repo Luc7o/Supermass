@@ -1,4 +1,6 @@
-import os, time, hmac
+import os, time, hmac, hashlib, re, random
+from datetime import timedelta
+from urllib.parse import urlparse
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -65,7 +67,12 @@ CREATE TABLE IF NOT EXISTS imagenes(
 CREATE TABLE IF NOT EXISTS sedes(
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY, nombre TEXT NOT NULL, direccion TEXT NOT NULL,
     horario TEXT DEFAULT '', activa SMALLINT DEFAULT 1);
-CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL DEFAULT '');"""
+CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS eventos(
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+    tipo TEXT NOT NULL, pagina TEXT NOT NULL, ref TEXT NOT NULL DEFAULT '', dispositivo TEXT NOT NULL DEFAULT '',
+    visitante TEXT NOT NULL DEFAULT '', extra TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS eventos_ts ON eventos(ts);"""
 
 
 def init_db():
@@ -277,13 +284,17 @@ def ver_imagen(i):
                     headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"})
 
 
-@app.get("/api/ajustes")
-def ver_ajustes():
+def leer_ajustes():
     d = {k: "" for k in AJUSTES}
     for r in db().execute("SELECT clave,valor FROM ajustes").fetchall():
         if r["clave"] in d:
             d[r["clave"]] = r["valor"]
-    return jsonify(d)
+    return d
+
+
+@app.get("/api/ajustes")
+def ver_ajustes():
+    return jsonify(leer_ajustes())
 
 
 @app.put("/api/ajustes")
@@ -308,6 +319,129 @@ def guardar_ajustes():
         db().execute("INSERT INTO ajustes(clave,valor) VALUES(%s,%s) ON CONFLICT(clave) DO UPDATE SET valor=EXCLUDED.valor", (k, v))
     db().commit()
     return jsonify(ok=True)
+
+
+# ---------- Estadísticas de visitas (sin cookies ni datos personales) ----------
+PAGINAS = ["inicio", "sedes", "ofertas", "productos", "contacto"]
+BOTS = re.compile(r"bot|crawl|spider|slurp|preview|headless|lighthouse|pingdom|monitor|curl|wget|python-requests|facebookexternalhit", re.I)
+RATE = {}
+
+
+def visitante_id():
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+    ua = request.headers.get("User-Agent", "")
+    # Hash que rota cada mes: no se guarda la IP ni se puede reconstruir
+    return hashlib.sha256(f"{SECRET}|{time.strftime('%Y-%m')}|{ip}|{ua}".encode()).hexdigest()[:16]
+
+
+def dispositivo(ua):
+    if re.search(r"ipad|tablet", ua, re.I):
+        return "Tablet"
+    if re.search(r"mobi|android|iphone", ua, re.I):
+        return "Móvil"
+    return "Computadora"
+
+
+def excede_limite(v):
+    ahora = time.time()
+    lst = [t for t in RATE.get(v, []) if ahora - t < 3600]
+    if len(lst) >= 120:
+        RATE[v] = lst
+        return True
+    lst.append(ahora)
+    RATE[v] = lst
+    if len(RATE) > 5000:
+        RATE.clear()
+    return False
+
+
+@app.post("/api/track")
+def track():
+    ua = request.headers.get("User-Agent", "")
+    d = request.get_json(silent=True)
+    if session.get("admin") or not ua or BOTS.search(ua) or not isinstance(d, dict):
+        return "", 204
+    tipo, pagina = d.get("tipo"), d.get("pagina")
+    if tipo not in ("vista", "clic") or pagina not in PAGINAS:
+        return "", 204
+    extra = re.sub(r"[^\w .:áéíóúüñÁÉÍÓÚÜÑ-]", "", str(d.get("extra", ""))[:80]).strip()
+    ref = ""
+    if tipo == "vista" and d.get("entrada"):
+        host = (urlparse(str(d.get("ref", ""))[:300]).hostname or "").removeprefix("www.")
+        propio = request.host.split(":")[0].lower().removeprefix("www.")
+        ref = "directo" if (not host or host == propio or host == ADMIN_HOST) else host[:60]
+    vid = visitante_id()
+    if excede_limite(vid):
+        return "", 204
+    db().execute("INSERT INTO eventos(tipo,pagina,ref,dispositivo,visitante,extra) VALUES(%s,%s,%s,%s,%s,%s)",
+                 (tipo, pagina, ref, dispositivo(ua), vid, extra))
+    if random.random() < 0.01:
+        db().execute("DELETE FROM eventos WHERE ts < now() - interval '400 days'")
+    db().commit()
+    return "", 204
+
+
+def local(fecha):
+    return db().execute("SELECT (%s::date)::timestamp AT TIME ZONE 'America/Lima' AS t", (fecha,)).fetchone()["t"]
+
+
+@app.get("/api/stats")
+@admin
+def stats():
+    try:
+        dias = int(request.args.get("dias", 30))
+    except ValueError:
+        dias = 30
+    dias = dias if dias in (7, 30, 90) else 30
+    d = db()
+    q = lambda sql, *p: d.execute(sql, p).fetchall()
+    hoy = q("SELECT (now() AT TIME ZONE 'America/Lima')::date AS h")[0]["h"]
+    inicio = hoy - timedelta(days=dias - 1)
+    ini, ini_prev, ini_hoy = local(inicio), local(inicio - timedelta(days=dias)), local(hoy)
+    RES = ("SELECT count(*) FILTER (WHERE tipo='vista') AS vistas, "
+           "count(DISTINCT visitante) FILTER (WHERE tipo='vista') AS visitantes, "
+           "count(*) FILTER (WHERE tipo='clic') AS clics FROM eventos WHERE ts >= %s")
+    serie = q("""SELECT g.d::date AS dia, coalesce(e.v,0) AS vistas, coalesce(e.u,0) AS visitantes
+        FROM generate_series(%s::date, %s::date, interval '1 day') AS g(d)
+        LEFT JOIN (SELECT (ts AT TIME ZONE 'America/Lima')::date AS dia, count(*) AS v, count(DISTINCT visitante) AS u
+                   FROM eventos WHERE tipo='vista' AND ts >= %s GROUP BY 1) e ON e.dia = g.d::date ORDER BY 1""",
+              inicio, hoy, ini)
+    lista = lambda sql, *p: [{"label": r["label"], "n": r["n"]} for r in q(sql, *p)]
+    horas = {r["h"]: r["n"] for r in q("""SELECT extract(hour FROM ts AT TIME ZONE 'America/Lima')::int AS h, count(*) AS n
+        FROM eventos WHERE tipo='vista' AND ts >= %s GROUP BY 1""", ini)}
+    of = q("SELECT count(*) AS total, count(*) FILTER (WHERE activa=1) AS activas FROM ofertas")[0]
+    pr = q("SELECT count(*) AS total, count(*) FILTER (WHERE activo=1) AS activos, "
+           "count(*) FILTER (WHERE activo=1 AND imagen_id IS NULL) AS sin_foto FROM productos")[0]
+    se = q("SELECT count(*) AS total, count(*) FILTER (WHERE activa=1) AS activas, "
+           "count(*) FILTER (WHERE activa=1 AND coalesce(horario,'')='') AS sin_horario FROM sedes")[0]
+    aj = leer_ajustes()
+    redes = sum(1 for k in ("facebook", "instagram", "tiktok") if aj[k])
+    al = []
+    if not of["activas"]:
+        al.append({"nivel": "warn", "texto": "No hay ofertas activas: la portada se ve vacía.", "tab": "ofertas"})
+    if not pr["activos"]:
+        al.append({"nivel": "warn", "texto": "No hay productos activos.", "tab": "productos"})
+    elif pr["sin_foto"]:
+        al.append({"nivel": "info", "texto": f"{pr['sin_foto']} producto(s) sin foto.", "tab": "productos"})
+    if not se["activas"]:
+        al.append({"nivel": "warn", "texto": "No hay sedes activas.", "tab": "sedes"})
+    elif se["sin_horario"]:
+        al.append({"nivel": "info", "texto": f"{se['sin_horario']} sede(s) sin horario.", "tab": "sedes"})
+    if not aj["whatsapp"]:
+        al.append({"nivel": "warn", "texto": "WhatsApp sin configurar: los botones de contacto están ocultos.", "tab": "ajustes"})
+    if redes < 3:
+        al.append({"nivel": "info", "texto": f"Faltan redes sociales ({redes} de 3).", "tab": "ajustes"})
+    return jsonify(
+        dias=dias, desde=str(inicio), hasta=str(hoy),
+        actual=q(RES, ini)[0], previo=q(RES + " AND ts < %s", ini_prev, ini)[0], hoy=q(RES, ini_hoy)[0],
+        serie=[{"dia": str(r["dia"]), "vistas": r["vistas"], "visitantes": r["visitantes"]} for r in serie],
+        paginas=lista("SELECT pagina AS label, count(*) AS n FROM eventos WHERE tipo='vista' AND ts >= %s GROUP BY 1 ORDER BY 2 DESC", ini),
+        dispositivos=lista("SELECT dispositivo AS label, count(DISTINCT visitante) AS n FROM eventos WHERE tipo='vista' AND ts >= %s GROUP BY 1 ORDER BY 2 DESC", ini),
+        referencias=lista("SELECT ref AS label, count(DISTINCT visitante) AS n FROM eventos WHERE tipo='vista' AND ref<>'' AND ts >= %s GROUP BY 1 ORDER BY 2 DESC LIMIT 6", ini),
+        clics=lista("SELECT extra AS label, count(*) AS n FROM eventos WHERE tipo='clic' AND ts >= %s GROUP BY 1 ORDER BY 2 DESC LIMIT 12", ini),
+        horas=[horas.get(i, 0) for i in range(24)],
+        contenido={"ofertas": of, "productos": pr, "sedes": se, "redes": redes},
+        alertas=al)
 
 
 FALLOS = {}

@@ -43,6 +43,12 @@ Con ambas opciones, conecta tu dominio y usa siempre `SECRET_KEY` y `ADMIN_PASSW
 5. Resultado: `admin.tudominio.com` abre el panel y `/admin` deja de existir en el sitio público.
 Si no defines `ADMIN_HOST`, el panel sigue en `/admin`. El subdominio no reemplaza la contraseña.
 
+## Estadísticas
+El panel abre en **Resumen**: visitas y visitantes (con comparación contra el periodo anterior), gráfico por día, páginas más vistas, de dónde llegan, dispositivos, acciones (clics en WhatsApp, redes y "Cómo llegar"), horas de más visitas y una lista de cosas por completar.
+- Se cuentan sin cookies ni datos personales: no se guarda la IP, solo una huella que cambia cada mes. Se ignoran bots, y se respeta "No rastrear" del navegador.
+- Tus propias visitas: abre el sitio una vez con `?notrack` al final (ej. `https://tudominio.com/?notrack`) en cada navegador que uses.
+- Los eventos de más de 400 días se borran solos. Las horas son de Lima.
+
 ## Qué puede administrar el cliente desde `/admin`
 - **Ofertas** y **Productos** (con foto): crear, editar, ocultar y eliminar.
 - **Sedes**: nombre, dirección y horario. El mapa de Google se arma con la dirección.

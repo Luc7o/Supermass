@@ -22,7 +22,7 @@ button{font:inherit;cursor:pointer}
 .tab{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:9px 20px;font-weight:700;color:var(--ink)}
 .tab[aria-pressed="true"]{background:var(--vino);color:#fff;border-color:var(--vino)}
 .card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;margin-bottom:22px;box-shadow:0 1px 2px rgba(31,20,22,.05)}
-.card h2{font-size:22px;margin-bottom:16px;color:var(--vino)}
+.card h2{font-size:20px;margin-bottom:16px;color:var(--vino)}
 .campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px}
 label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:14px}
 input,select{font:inherit;padding:11px 13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:400}
@@ -40,13 +40,53 @@ tr.off td{color:#A59A9B}
 .th{width:48px;height:48px;border-radius:10px;object-fit:cover;display:grid;place-items:center;background:var(--soft);color:var(--muted)}
 .pill{border:0;border-radius:99px;padding:5px 12px;font-weight:700;font-size:13px;background:#DDF5E3;color:#146B2E}
 tr.off .pill{background:#EEE;color:#777}
-.vacio{text-align:center;color:var(--muted);padding:30px}
+.vacio{text-align:center;color:var(--muted);padding:20px}
 #login{max-width:380px;margin:12vh auto;text-align:center}
-#login h2{margin-bottom:6px}#login p{color:var(--muted);margin:0 0 18px}
+#login h2{margin-bottom:6px;font-size:26px}#login p{color:var(--muted);margin:0 0 18px}
 #login input{width:100%;margin-bottom:12px}
-#aviso{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--vino);color:#fff;padding:12px 22px;border-radius:99px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+#aviso{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--vino);color:#fff;padding:12px 22px;border-radius:99px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center;z-index:9}
 #aviso.on{opacity:1}#aviso.mal{background:var(--rojo)}
 [hidden]{display:none!important}
+
+/* Dashboard */
+.dhead{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.dhead h2{font-size:30px;color:var(--vino)}
+.dhead .nota{margin:4px 0 0}
+.seg{display:flex;background:#fff;border:1.5px solid var(--line);border-radius:99px;padding:3px}
+.seg button{border:0;background:none;border-radius:99px;padding:7px 16px;font-weight:700;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--vino);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;box-shadow:0 1px 2px rgba(31,20,22,.05)}
+.kpi span{display:block;font-size:13px;font-weight:700;color:var(--muted)}
+.kpi b{display:block;font:800 34px/1.15 "Bricolage Grotesque",sans-serif;color:var(--vino);margin:4px 0 2px}
+.kpi small{display:block;font-size:12.5px;color:var(--muted)}
+.kpi .up{color:#146B2E}.kpi .down{color:var(--rojo)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:22px}
+.cols .card{margin-bottom:0}
+.cols+.card,.cols+.cols,.card+.cols{margin-top:22px}
+.leyenda{display:flex;gap:18px;font-size:13px;color:var(--muted);margin-top:8px}
+.leyenda i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+#chart svg{width:100%;height:auto;display:block}
+.br{margin-bottom:12px}
+.brl{display:flex;justify-content:space-between;gap:10px;font-size:14.5px}
+.brl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brb{height:8px;background:var(--soft);border-radius:8px;margin-top:5px;overflow:hidden}
+.brb i{display:block;height:100%;background:var(--sol);border-radius:8px}
+.hbars{display:flex;align-items:stretch;gap:4px;height:170px}
+.hb{flex:1;display:flex;flex-direction:column;min-width:0}
+.hb .col{flex:1;display:flex;align-items:flex-end}
+.hb i{display:block;width:100%;background:var(--sol);border-radius:4px 4px 0 0}
+.hb i.pk{background:var(--rojo)}
+.hb span{font-size:11px;color:var(--muted);height:16px;text-align:center}
+.al{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--soft);margin-bottom:8px;font-size:14.5px}
+.al.warn{background:#FDE8EA}
+.al button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;font-weight:700;white-space:nowrap}
+.ok{color:#146B2E;font-weight:700;margin:0}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{border:1px solid var(--line);background:var(--soft);border-radius:14px;padding:14px;text-align:left}
+.tile b{display:block;font:800 26px/1.1 "Bricolage Grotesque",sans-serif;color:var(--vino)}
+.tile span{font-size:13px;color:var(--muted)}
+.priv{font-size:13px;color:var(--muted);margin:22px 0 0}
 </style>
 </head>
 <body>
@@ -61,14 +101,40 @@ tr.off .pill{background:#EEE;color:#777}
     <div class="acts"><a class="btn alt" href="/" target="_blank" style="text-decoration:none">Ver sitio</a><button class="btn alt" id="salir">Salir</button></div></div></header>
   <main>
     <div class="tabs" id="tabs">
-      <button class="tab" data-t="ofertas" aria-pressed="true">Ofertas</button>
+      <button class="tab" data-t="resumen" aria-pressed="true">Resumen</button>
+      <button class="tab" data-t="ofertas" aria-pressed="false">Ofertas</button>
       <button class="tab" data-t="productos" aria-pressed="false">Productos</button>
       <button class="tab" data-t="sedes" aria-pressed="false">Sedes</button>
       <button class="tab" data-t="ajustes" aria-pressed="false">Redes y contacto</button>
     </div>
-    <form class="card" id="f"><h2 id="fh"></h2><div class="campos" id="campos"></div>
+
+    <section id="dash">
+      <div class="dhead">
+        <div><h2>Resumen</h2><p class="nota" id="dsub"></p></div>
+        <div class="acts"><div class="seg" id="seg">
+          <button data-d="7" aria-pressed="false">7 días</button><button data-d="30" aria-pressed="true">30 días</button><button data-d="90" aria-pressed="false">90 días</button>
+        </div><button class="btn alt" id="actualizar">Actualizar</button></div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="card"><h2>Visitas por día</h2><div id="chart"></div>
+        <div class="leyenda"><span><i style="background:#D6122B"></i>Visitas</span><span><i style="background:#FFC21A"></i>Visitantes</span></div></div>
+      <div class="cols">
+        <div class="card"><h2>Páginas más vistas</h2><div id="l-pag"></div></div>
+        <div class="card"><h2>Cómo llegan</h2><div id="l-ref"></div></div>
+        <div class="card"><h2>Dispositivos</h2><div id="l-dis"></div></div>
+        <div class="card"><h2>Acciones de los visitantes</h2><div id="l-clic"></div></div>
+      </div>
+      <div class="card" style="margin-top:22px"><h2>¿A qué hora visitan la página?</h2><div id="horas"></div></div>
+      <div class="cols">
+        <div class="card"><h2>Por completar</h2><div id="alertas"></div></div>
+        <div class="card"><h2>Tu contenido</h2><div class="tiles" id="cont"></div></div>
+      </div>
+      <p class="priv">Las visitas se cuentan sin cookies ni datos personales: no se guarda la IP ni el nombre de nadie. "Visitantes" es una estimación (se agrupa por dispositivo y navegador). Las horas son de Lima. Para que tus propias visitas no cuenten, abre el sitio una vez con <b>?notrack</b> al final del enlace en ese navegador.</p>
+    </section>
+
+    <form class="card" id="f" hidden><h2 id="fh"></h2><div class="campos" id="campos"></div>
       <div class="acts"><button class="btn">Guardar</button><button type="button" class="btn alt" id="cancel" hidden>Cancelar</button></div></form>
-    <div class="card" id="tc"><div class="wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div></div>
+    <div class="card" id="tc" hidden><div class="wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div></div>
     <form class="card" id="fa" hidden><h2>Redes sociales y contacto</h2>
       <p class="nota">Si dejas un campo vacío, ese botón se oculta en el sitio. Los enlaces deben empezar con https://</p>
       <div class="campos" id="camposa"></div><button class="btn">Guardar</button></form>
@@ -81,7 +147,7 @@ tr.off .pill{background:#EEE;color:#777}
 const $=s=>document.querySelector(s);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const m=v=>v==null?"—":"S/ "+Number(v).toFixed(2);
-let CONF={iconos:[],categorias:[]},tab="ofertas",datos=[],edit=null,fotoId=null;
+let CONF={iconos:[],categorias:[]},tab="resumen",datos=[],edit=null,fotoId=null,dias=30;
 const CFG={
   ofertas:{nom:"oferta",act:"activa",cols:[["titulo","Oferta"],["precio","Precio",m],["precio_antes","Antes",m],["etiqueta","Etiqueta"]],
     campos:()=>[["titulo","Nombre de la oferta","text"],["precio","Precio (S/)","number"],["precio_antes","Precio antes (S/), opcional","number"],["etiqueta","Etiqueta, ej. -20% o 2x1","text"],["icono","Icono","select",CONF.iconos]]},
@@ -100,6 +166,81 @@ async function api(u,met="GET",body){
   if(!r.ok)throw new Error(j.error||"Error");return j;
 }
 function mostrar(ok){$("#login").hidden=ok;$("#app").hidden=!ok}
+
+/* ---------- Dashboard ---------- */
+const ETQ={whatsapp:"WhatsApp",whatsapp_local:"WhatsApp · ofrecer local",facebook:"Facebook",instagram:"Instagram",tiktok:"TikTok"};
+const PAG={inicio:"Inicio",sedes:"Nuestras sedes",ofertas:"Ofertas",productos:"Productos",contacto:"Contacto"};
+function etq(x){
+  if(ETQ[x])return ETQ[x];
+  if(x.startsWith("como_llegar:"))return "Cómo llegar · "+x.slice(12);
+  if(x.startsWith("ver_sede:"))return "Ver sede · "+x.slice(9);
+  return x||"(sin nombre)";
+}
+const fecha=d=>new Date(d+"T12:00:00").toLocaleDateString("es-PE",{day:"numeric",month:"short"});
+const pct=(a,b)=>b?Math.round((a-b)/b*100):null;
+function kpi(t,v,d,nota){
+  let s=nota||"";
+  if(d!==undefined&&d!==null)s=d===0?"= igual que el periodo anterior":`<span class="${d>0?"up":"down"}" style="display:inline;font-size:inherit">${d>0?"▲":"▼"} ${Math.abs(d)}%</span> vs periodo anterior`;
+  else if(d===null)s="sin datos del periodo anterior";
+  return `<div class="kpi"><span>${t}</span><b>${v}</b><small>${s}</small></div>`;
+}
+function barras(id,items,fmt){
+  const max=Math.max(1,...items.map(i=>i.n));
+  $(id).innerHTML=items.length?items.map(i=>`<div class="br"><div class="brl"><span>${esc(fmt?fmt(i.label):i.label)}</span><b>${i.n}</b></div><div class="brb"><i style="width:${Math.max(3,i.n/max*100)}%"></i></div></div>`).join(""):'<p class="vacio">Sin datos todavía.</p>';
+}
+const nice=v=>{const p=Math.pow(10,Math.floor(Math.log10(v))),f=v/p;return(f<=1?1:f<=2?2:f<=5?5:10)*p};
+function grafico(serie){
+  const W=720,H=250,L=38,B=26,T=10,R=8,w=W-L-R,h=H-T-B,n=serie.length;
+  const top=nice(Math.max(5,...serie.map(s=>s.vistas)));
+  const x=i=>L+(n<2?w/2:i*w/(n-1)),y=v=>T+h-(v/top)*h;
+  const linea=k=>serie.map((s,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(s[k]).toFixed(1)).join("");
+  let g="";
+  [0,.5,1].forEach(f=>{const yy=y(top*f);g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="#ECE4DD"/><text x="${L-6}" y="${yy+4}" text-anchor="end" font-size="11" fill="#665A5C">${Math.round(top*f)}</text>`});
+  [0,Math.floor((n-1)/2),n-1].forEach((i,k)=>{if(serie[i])g+=`<text x="${x(i)}" y="${H-6}" text-anchor="${k===0?"start":k===2?"end":"middle"}" font-size="11" fill="#665A5C">${fecha(serie[i].dia)}</text>`});
+  g+=`<path d="${linea("vistas")}L${x(n-1)} ${T+h}L${x(0)} ${T+h}Z" fill="#D6122B" opacity=".08"/>`;
+  g+=`<path d="${linea("visitantes")}" fill="none" stroke="#FFC21A" stroke-width="2.5" stroke-linejoin="round"/>`;
+  g+=`<path d="${linea("vistas")}" fill="none" stroke="#D6122B" stroke-width="2.5" stroke-linejoin="round"/>`;
+  if(n<=31)serie.forEach((s,i)=>{g+=`<circle cx="${x(i)}" cy="${y(s.vistas)}" r="3" fill="#D6122B"/>`});
+  const cw=w/Math.max(n,1);
+  serie.forEach((s,i)=>{g+=`<rect x="${x(i)-cw/2}" y="${T}" width="${cw}" height="${h}" fill="transparent"><title>${fecha(s.dia)}: ${s.vistas} visitas, ${s.visitantes} visitantes</title></rect>`});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico de visitas por día">${g}</svg>`;
+}
+function horas(arr){
+  const max=Math.max(1,...arr);
+  $("#horas").innerHTML='<div class="hbars">'+arr.map((n,i)=>`<div class="hb" title="${i}:00 a ${i}:59 · ${n} visitas"><div class="col"><i class="${n===max&&n>0?"pk":""}" style="height:${Math.max(2,n/max*100)}%"></i></div><span>${i%3===0?i+"h":""}</span></div>`).join("")+'</div>';
+}
+async function dash(){
+  const s=await api("/api/stats?dias="+dias),a=s.actual,p=s.previo,h=s.hoy,c=s.contenido;
+  $("#dsub").textContent=`Del ${fecha(s.desde)} al ${fecha(s.hasta)}`;
+  const ppv=a.visitantes?(a.vistas/a.visitantes).toFixed(1):"—",apv=a.visitantes?(a.clics/a.visitantes).toFixed(2):"—";
+  $("#kpis").innerHTML=[
+    kpi("Visitas",a.vistas,pct(a.vistas,p.vistas)),
+    kpi("Visitantes",a.visitantes,pct(a.visitantes,p.visitantes)),
+    kpi("Hoy",h.visitantes,undefined,`${h.vistas} visitas hoy`),
+    kpi("Acciones",a.clics,pct(a.clics,p.clics)),
+    kpi("Páginas por visita",ppv,undefined,"cuántas páginas ve cada persona"),
+    kpi("Acciones por visitante",apv,undefined,"clics en WhatsApp, redes y mapas")
+  ].join("");
+  $("#chart").innerHTML=a.vistas?grafico(s.serie):'<p class="vacio">Aún no hay visitas registradas. Se empiezan a contar desde que el sitio tiene esta versión.</p>';
+  barras("#l-pag",s.paginas,x=>PAG[x]||x);
+  barras("#l-ref",s.referencias,x=>x==="directo"?"Directo (enlace o buscador del navegador)":x);
+  barras("#l-dis",s.dispositivos);
+  barras("#l-clic",s.clics,etq);
+  horas(s.horas);
+  $("#alertas").innerHTML=s.alertas.length?s.alertas.map(x=>`<div class="al ${x.nivel}"><span>${esc(x.texto)}</span><button data-go="${x.tab}">Resolver</button></div>`).join(""):'<p class="ok">✓ Todo al día.</p>';
+  $("#cont").innerHTML=[["ofertas","Ofertas",`${c.ofertas.activas}/${c.ofertas.total}`,"activas"],["productos","Productos",`${c.productos.activos}/${c.productos.total}`,"activos"],
+    ["sedes","Sedes",`${c.sedes.activas}/${c.sedes.total}`,"activas"],["ajustes","Redes",`${c.redes}/3`,"configuradas"]]
+    .map(([t,l,v,n])=>`<button class="tile" data-go="${t}"><b>${v}</b><span>${l} ${n}</span></button>`).join("");
+}
+$("#seg").onclick=e=>{
+  const b=e.target.closest("button");if(!b)return;dias=+b.dataset.d;
+  document.querySelectorAll("#seg button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  dash().catch(x=>aviso(x.message,true));
+};
+$("#actualizar").onclick=()=>dash().then(()=>aviso("Actualizado")).catch(x=>aviso(x.message,true));
+setInterval(()=>{if(tab==="resumen"&&!$("#app").hidden)dash().catch(()=>{})},60000);
+
+/* ---------- Secciones de edición ---------- */
 function form(){
   const d=edit||{};
   $("#campos").innerHTML=CFG[tab].campos().map(([k,l,t,o])=>`<label>${l}`+(t==="select"
@@ -120,19 +261,24 @@ function tabla(){
     :`<tr><td colspan="9" class="vacio">Aún no hay registros.</td></tr>`;
 }
 async function cargar(){
-  const aj=tab==="ajustes";
-  $("#f").hidden=aj;$("#tc").hidden=aj;$("#fa").hidden=!aj;
-  if(aj){
+  const crud=["ofertas","productos","sedes"].includes(tab);
+  $("#dash").hidden=tab!=="resumen";$("#f").hidden=!crud;$("#tc").hidden=!crud;$("#fa").hidden=tab!=="ajustes";
+  if(tab==="resumen")return dash();
+  if(tab==="ajustes"){
     const a=await api("/api/ajustes");
     $("#camposa").innerHTML=AJ.map(([k,l,t,p])=>`<label>${l}<input name="${k}" type="${t}" placeholder="${p}" value="${esc(a[k]||"")}"></label>`).join("");
     return;
   }
   datos=await api(`/api/${tab}?todos=1`);form();tabla();
 }
-document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
-  tab=b.dataset.t;edit=null;document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-pressed",x===b));
+function irA(t){
+  tab=t;edit=null;
+  document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-pressed",x.dataset.t===t));
   cargar().catch(x=>aviso(x.message,true));
-});
+  scrollTo({top:0});
+}
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>irA(b.dataset.t));
+document.addEventListener("click",e=>{const g=e.target.closest("[data-go]");if(g)irA(g.dataset.go)});
 $("#f").onsubmit=async e=>{
   e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
   try{edit?await api(`/api/${tab}/${edit.id}`,"PUT",b):await api(`/api/${tab}`,"POST",b);
@@ -175,7 +321,7 @@ $("#fl").onsubmit=async e=>{
   try{await api("/api/login","POST",{password:$("#pw").value});$("#pw").value="";await iniciar()}catch(x){aviso(x.message,true)}
 };
 $("#salir").onclick=async()=>{await api("/api/logout","POST",{});mostrar(false)};
-async function iniciar(){CONF=await api("/api/config");mostrar(true);await cargar()}
+async function iniciar(){CONF=await api("/api/config");mostrar(true);irA("resumen")}
 (async()=>{const r=await api("/api/me");r.admin?iniciar():mostrar(false)})();
 </script>
 </body>
