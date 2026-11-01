@@ -35,6 +35,14 @@ python app.py
 
 Con ambas opciones, conecta tu dominio y usa siempre `SECRET_KEY` y `ADMIN_PASSWORD` propios.
 
+## Subdominio para el panel (opcional)
+1. En Vercel: **Settings → Domains → Add** → `admin.tudominio.com`.
+2. En el DNS de tu dominio, crea el registro que Vercel te indique (normalmente un `CNAME` llamado `admin` hacia el valor que muestra Vercel).
+3. Espera a que Vercel marque el dominio como válido (el HTTPS es automático).
+4. Agrega la variable `ADMIN_HOST=admin.tudominio.com` y vuelve a desplegar.
+5. Resultado: `admin.tudominio.com` abre el panel y `/admin` deja de existir en el sitio público.
+Si no defines `ADMIN_HOST`, el panel sigue en `/admin`. El subdominio no reemplaza la contraseña.
+
 ## Qué puede administrar el cliente desde `/admin`
 - **Ofertas** y **Productos** (con foto): crear, editar, ocultar y eliminar.
 - **Sedes**: nombre, dirección y horario. El mapa de Google se arma con la dirección.

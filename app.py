@@ -29,6 +29,8 @@ CAMPOS = {
 REQ = {"ofertas": ["titulo", "precio"], "productos": ["nombre", "categoria", "precio"], "sedes": ["nombre", "direccion"]}
 ACT = {"ofertas": "activa", "productos": "activo", "sedes": "activa"}
 AJUSTES = ["facebook", "instagram", "tiktok", "whatsapp"]
+# Si defines ADMIN_HOST (ej. admin.tudominio.com), el panel solo se sirve en ese dominio
+ADMIN_HOST = os.environ.get("ADMIN_HOST", "").strip().lower()
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.secret_key = SECRET
@@ -152,6 +154,18 @@ def chk(t):
 @app.errorhandler(413)
 def err(e):
     return jsonify(error=getattr(e, "description", "Error")), e.code
+
+
+@app.before_request
+def separar_panel():
+    if not ADMIN_HOST:
+        return None
+    es_admin = request.host.split(":")[0].lower() == ADMIN_HOST
+    if request.path in ("/admin", "/admin.html") and not es_admin:
+        abort(404)
+    if es_admin and request.path in ("/", "/index.html", "/admin"):
+        return app.send_static_file("admin.html")
+    return None
 
 
 @app.get("/")
