@@ -443,6 +443,8 @@ def calcular(dias):
         clics=lista("SELECT extra AS label, count(*) AS n FROM eventos WHERE tipo='clic' AND ts >= %s GROUP BY 1 ORDER BY 2 DESC LIMIT 12", ini),
         horas=[horas.get(i, 0) for i in range(24)],
         contenido={"ofertas": of, "productos": pr, "sedes": se, "redes": redes},
+        recientes=q("SELECT to_char(ts AT TIME ZONE 'America/Lima','DD/MM HH24:MI') AS fecha, tipo, pagina, extra, dispositivo "
+                    "FROM eventos ORDER BY id DESC LIMIT 8"),
         alertas=al)
 
 
