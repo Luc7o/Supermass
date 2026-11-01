@@ -49,6 +49,13 @@ El panel abre en **Resumen**: visitas y visitantes (con comparación contra el p
 - Tus propias visitas: abre el sitio una vez con `?notrack` al final (ej. `https://tudominio.com/?notrack`) en cada navegador que uses.
 - Los eventos de más de 400 días se borran solos. Las horas son de Lima.
 
+## Reporte semanal por correo
+En el panel (**Resumen → Reporte semanal por correo**) el cliente escribe los correos que lo reciben y lo activa. Se envía cada lunes a las 8:00 a. m. (hora de Lima) con las visitas de los últimos 7 días.
+1. Variables en el hosting: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `CRON_SECRET` (ver `.env.example`). Con Gmail, `SMTP_PASSWORD` es una contraseña de aplicación, no tu clave normal.
+2. En Vercel el envío automático lo dispara `vercel.json` (Cron Jobs, `0 13 * * 1` = lunes 13:00 UTC). Vercel manda `Authorization: Bearer <CRON_SECRET>` solo si defines `CRON_SECRET`.
+3. En otros hostings, programa una llamada semanal a `GET /api/cron/reporte` con el encabezado `Authorization: Bearer <CRON_SECRET>`.
+4. El botón **Enviar prueba ahora** manda el reporte al instante a los correos escritos.
+
 ## Qué puede administrar el cliente desde `/admin`
 - **Ofertas** y **Productos** (con foto): crear, editar, ocultar y eliminar.
 - **Sedes**: nombre, dirección y horario. El mapa de Google se arma con la dirección.

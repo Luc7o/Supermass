@@ -87,6 +87,8 @@ tr.off .pill{background:#EEE;color:#777}
 .tile b{display:block;font:800 26px/1.1 "Bricolage Grotesque",sans-serif;color:var(--vino)}
 .tile span{font-size:13px;color:var(--muted)}
 .priv{font-size:13px;color:var(--muted);margin:22px 0 0}
+.chk{flex-direction:row;align-items:center;gap:10px;font-weight:500}
+.chk input{width:18px;height:18px;padding:0}
 </style>
 </head>
 <body>
@@ -129,6 +131,14 @@ tr.off .pill{background:#EEE;color:#777}
         <div class="card"><h2>Por completar</h2><div id="alertas"></div></div>
         <div class="card"><h2>Tu contenido</h2><div class="tiles" id="cont"></div></div>
       </div>
+      <form class="card" id="rep" style="margin-top:22px"><h2>Reporte semanal por correo</h2>
+        <p class="nota" id="rep-nota"></p>
+        <div class="campos">
+          <label>Correos que lo reciben (hasta 5, separados por coma)<input id="rep-emails" type="text" placeholder="dueno@correo.com, gerente@correo.com"></label>
+          <label class="chk"><input id="rep-activo" type="checkbox"> Enviarlo cada lunes a las 8:00 a. m. (hora de Lima)</label>
+        </div>
+        <div class="acts"><button class="btn">Guardar</button><button type="button" class="btn alt" id="rep-test">Enviar prueba ahora</button></div>
+      </form>
       <p class="priv">Las visitas se cuentan sin cookies ni datos personales: no se guarda la IP ni el nombre de nadie. "Visitantes" es una estimación (se agrupa por dispositivo y navegador). Las horas son de Lima. Para que tus propias visitas no cuenten, abre el sitio una vez con <b>?notrack</b> al final del enlace en ese navegador.</p>
     </section>
 
@@ -240,6 +250,21 @@ $("#seg").onclick=e=>{
 $("#actualizar").onclick=()=>dash().then(()=>aviso("Actualizado")).catch(x=>aviso(x.message,true));
 setInterval(()=>{if(tab==="resumen"&&!$("#app").hidden)dash().catch(()=>{})},60000);
 
+async function cargarRep(){
+  const r=await api("/api/reporte");
+  $("#rep-emails").value=r.emails;$("#rep-activo").checked=r.activo;
+  $("#rep-nota").textContent=!r.smtp?"⚠ Falta configurar el servidor de correo en el hosting (variables SMTP_HOST, SMTP_USER y SMTP_PASSWORD). Sin eso no se puede enviar.":(r.ultimo?"Último envío automático: "+r.ultimo+" (hora de Lima).":"Aún no se ha enviado ningún reporte automático.");
+}
+$("#rep").onsubmit=async e=>{
+  e.preventDefault();
+  try{await api("/api/reporte","PUT",{emails:$("#rep-emails").value,activo:$("#rep-activo").checked});aviso("Guardado")}catch(x){aviso(x.message,true)}
+};
+$("#rep-test").onclick=async()=>{
+  const b=$("#rep-test");b.disabled=true;b.textContent="Enviando…";
+  try{await api("/api/reporte/prueba","POST",{emails:$("#rep-emails").value});aviso("Reporte enviado. Revisa tu bandeja y la carpeta de spam.")}catch(x){aviso(x.message,true)}
+  b.disabled=false;b.textContent="Enviar prueba ahora";
+};
+
 /* ---------- Secciones de edición ---------- */
 function form(){
   const d=edit||{};
@@ -263,7 +288,7 @@ function tabla(){
 async function cargar(){
   const crud=["ofertas","productos","sedes"].includes(tab);
   $("#dash").hidden=tab!=="resumen";$("#f").hidden=!crud;$("#tc").hidden=!crud;$("#fa").hidden=tab!=="ajustes";
-  if(tab==="resumen")return dash();
+  if(tab==="resumen"){cargarRep().catch(()=>{});return dash()}
   if(tab==="ajustes"){
     const a=await api("/api/ajustes");
     $("#camposa").innerHTML=AJ.map(([k,l,t,p])=>`<label>${l}<input name="${k}" type="${t}" placeholder="${p}" value="${esc(a[k]||"")}"></label>`).join("");

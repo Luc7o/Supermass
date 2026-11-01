@@ -1,4 +1,6 @@
-import os, time, hmac, hashlib, re, random
+import os, time, hmac, hashlib, re, random, smtplib, ssl
+from email.message import EmailMessage
+from html import escape
 from datetime import timedelta
 from urllib.parse import urlparse
 try:
@@ -33,6 +35,13 @@ ACT = {"ofertas": "activa", "productos": "activo", "sedes": "activa"}
 AJUSTES = ["facebook", "instagram", "tiktok", "whatsapp"]
 # Si defines ADMIN_HOST (ej. admin.tudominio.com), el panel solo se sirve en ese dominio
 ADMIN_HOST = os.environ.get("ADMIN_HOST", "").strip().lower()
+# Correo (reporte semanal): servidor SMTP, por ejemplo smtp.gmail.com con una contraseña de aplicación
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+MAIL_FROM = os.environ.get("MAIL_FROM", "").strip() or SMTP_USER
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.secret_key = SECRET
@@ -385,14 +394,7 @@ def local(fecha):
     return db().execute("SELECT (%s::date)::timestamp AT TIME ZONE 'America/Lima' AS t", (fecha,)).fetchone()["t"]
 
 
-@app.get("/api/stats")
-@admin
-def stats():
-    try:
-        dias = int(request.args.get("dias", 30))
-    except ValueError:
-        dias = 30
-    dias = dias if dias in (7, 30, 90) else 30
+def calcular(dias):
     d = db()
     q = lambda sql, *p: d.execute(sql, p).fetchall()
     hoy = q("SELECT (now() AT TIME ZONE 'America/Lima')::date AS h")[0]["h"]
@@ -431,7 +433,7 @@ def stats():
         al.append({"nivel": "warn", "texto": "WhatsApp sin configurar: los botones de contacto están ocultos.", "tab": "ajustes"})
     if redes < 3:
         al.append({"nivel": "info", "texto": f"Faltan redes sociales ({redes} de 3).", "tab": "ajustes"})
-    return jsonify(
+    return dict(
         dias=dias, desde=str(inicio), hasta=str(hoy),
         actual=q(RES, ini)[0], previo=q(RES + " AND ts < %s", ini_prev, ini)[0], hoy=q(RES, ini_hoy)[0],
         serie=[{"dia": str(r["dia"]), "vistas": r["vistas"], "visitantes": r["visitantes"]} for r in serie],
@@ -442,6 +444,196 @@ def stats():
         horas=[horas.get(i, 0) for i in range(24)],
         contenido={"ofertas": of, "productos": pr, "sedes": se, "redes": redes},
         alertas=al)
+
+
+@app.get("/api/stats")
+@admin
+def stats():
+    try:
+        dias = int(request.args.get("dias", 30))
+    except ValueError:
+        dias = 30
+    return jsonify(calcular(dias if dias in (7, 30, 90) else 30))
+
+
+# ---------- Reporte semanal por correo ----------
+ETQ = {"whatsapp": "WhatsApp", "whatsapp_local": "WhatsApp (ofrecer local)", "facebook": "Facebook",
+       "instagram": "Instagram", "tiktok": "TikTok"}
+PAG = {"inicio": "Inicio", "sedes": "Nuestras sedes", "ofertas": "Ofertas", "productos": "Productos", "contacto": "Contacto"}
+EMAIL_RE = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$")
+
+
+def etiqueta(x):
+    if x in ETQ:
+        return ETQ[x]
+    if x.startswith("como_llegar:"):
+        return "Cómo llegar · " + x[12:]
+    if x.startswith("ver_sede:"):
+        return "Ver sede · " + x[9:]
+    return x or "(sin nombre)"
+
+
+def correos_validos(texto):
+    lista = [e.strip() for e in re.split(r"[,;\s]+", str(texto)) if e.strip()]
+    if not lista or len(lista) > 5 or not all(EMAIL_RE.match(e) for e in lista):
+        raise ValueError("correos")
+    return lista
+
+
+def get_cfg(k):
+    r = db().execute("SELECT valor FROM ajustes WHERE clave=%s", (k,)).fetchone()
+    return r["valor"] if r else ""
+
+
+def set_cfg(k, v):
+    db().execute("INSERT INTO ajustes(clave,valor) VALUES(%s,%s) ON CONFLICT(clave) DO UPDATE SET valor=EXCLUDED.valor", (k, v))
+
+
+def smtp_ok():
+    return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
+
+
+def armar_reporte(s, enlace):
+    a, p = s["actual"], s["previo"]
+    fecha = lambda x: x[8:10] + "/" + x[5:7]
+    rango = f"{fecha(s['desde'])} al {fecha(s['hasta'])}"
+
+    def cambio(x, y):
+        if not y:
+            return "sin datos de la semana anterior"
+        v = round((x - y) / y * 100)
+        return "igual que la semana anterior" if v == 0 else f"{'▲' if v > 0 else '▼'} {abs(v)}% vs semana anterior"
+
+    kp = [(n, a[k], cambio(a[k], p[k])) for n, k in (("Visitas", "vistas"), ("Visitantes", "visitantes"), ("Acciones", "clics"))]
+    mejor = max(range(24), key=lambda i: s["horas"][i])
+    hora = f"{mejor}:00 a {mejor}:59" if s["horas"][mejor] else "sin datos"
+    secciones = [
+        ("Páginas más vistas", [(PAG.get(i["label"], i["label"]), i["n"]) for i in s["paginas"]]),
+        ("De dónde llegan", [("Directo" if i["label"] == "directo" else i["label"], i["n"]) for i in s["referencias"]]),
+        ("Dispositivos", [(i["label"], i["n"]) for i in s["dispositivos"]]),
+        ("Acciones más frecuentes", [(etiqueta(i["label"]), i["n"]) for i in s["clics"]]),
+    ]
+    mx = max([d["vistas"] for d in s["serie"]] + [1])
+    dias = [(fecha(d["dia"]), d["vistas"], "█" * round(d["vistas"] / mx * 18)) for d in s["serie"]]
+    asunto = f"Resumen semanal SuperMass Market ({rango})"
+
+    t = [asunto, ""] + [f"{n}: {v} ({c})" for n, v, c in kp] + [f"Hora con más visitas: {hora}", ""]
+    for tit, its in secciones:
+        t += [tit + ":"] + ([f"  - {n}: {v}" for n, v in its[:5]] or ["  (sin datos)"]) + [""]
+    if s["alertas"]:
+        t += ["Por completar:"] + [f"  - {x['texto']}" for x in s["alertas"]] + [""]
+    t.append("Abrir el panel: " + enlace)
+
+    E = escape
+    celdas = "".join(
+        f'<td style="padding:14px 8px;background:#FFF9EA;border-radius:12px;text-align:center"><div style="font-size:13px;color:#665A5C">{n}</div>'
+        f'<div style="font-size:30px;font-weight:800;color:#780115">{v}</div><div style="font-size:12px;color:#665A5C">{E(c)}</div></td>' for n, v, c in kp)
+    bloques = "".join(
+        f'<h3 style="margin:22px 0 8px;font-size:16px;color:#780115">{E(tit)}</h3>'
+        + ("".join(f'<div style="padding:5px 0;border-bottom:1px solid #ECE4DD;font-size:14px"><span style="float:right;font-weight:700">{v}</span>{E(str(n))}</div>' for n, v in its[:5])
+           or '<div style="font-size:14px;color:#665A5C">Sin datos esta semana.</div>') for tit, its in secciones)
+    filas = "".join(f'<tr><td style="padding:2px 10px 2px 0;color:#665A5C">{d}</td><td style="color:#D6122B">{b}</td><td style="padding-left:8px;font-weight:700">{v}</td></tr>' for d, v, b in dias)
+    pend = ("".join(f'<li style="margin:4px 0">{E(x["texto"])}</li>' for x in s["alertas"]) and
+            '<h3 style="margin:22px 0 8px;font-size:16px;color:#780115">Por completar</h3><ul style="padding-left:18px;font-size:14px">'
+            + "".join(f'<li style="margin:4px 0">{E(x["texto"])}</li>' for x in s["alertas"]) + "</ul>") if s["alertas"] else ""
+    html = (f'<div style="background:#FAF7F2;padding:20px;font-family:Arial,sans-serif;color:#1F1416"><div style="max-width:600px;margin:auto;background:#fff;border-radius:16px;overflow:hidden">'
+            f'<div style="background:#FFC21A;padding:22px 26px"><div style="font-size:22px;font-weight:800;color:#780115">SuperMass Market</div>'
+            f'<div style="color:#780115">Resumen semanal · {rango}</div></div><div style="padding:24px 26px">'
+            f'<table width="100%" cellspacing="8" style="border-collapse:separate"><tr>{celdas}</tr></table>'
+            f'<p style="font-size:14px;margin:14px 0 0">Hora con más visitas: <b>{hora}</b> (hora de Lima)</p>'
+            f'<h3 style="margin:22px 0 8px;font-size:16px;color:#780115">Visitas por día</h3>'
+            f'<table style="font-family:Consolas,monospace;font-size:13px">{filas}</table>{bloques}{pend}'
+            f'<p style="margin:26px 0 0"><a href="{E(enlace)}" style="background:#D6122B;color:#fff;text-decoration:none;padding:12px 22px;border-radius:99px;font-weight:700">Abrir el panel</a></p>'
+            f'</div></div></div>')
+    return asunto, "\n".join(t), html
+
+
+def enviar(destinos, asunto, texto, html):
+    msg = EmailMessage()
+    msg["Subject"], msg["From"], msg["To"] = asunto, f"SuperMass Market <{MAIL_FROM}>", ", ".join(destinos)
+    msg.set_content(texto)
+    msg.add_alternative(html, subtype="html")
+    ctx = ssl.create_default_context()
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=20) as srv:
+            srv.login(SMTP_USER, SMTP_PASSWORD)
+            srv.send_message(msg)
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as srv:
+            srv.starttls(context=ctx)
+            srv.login(SMTP_USER, SMTP_PASSWORD)
+            srv.send_message(msg)
+
+
+def enviar_reporte(destinos):
+    enlace = ("https://" + ADMIN_HOST) if ADMIN_HOST else request.host_url.rstrip("/") + "/admin"
+    enviar(destinos, *armar_reporte(calcular(7), enlace))
+
+
+@app.get("/api/reporte")
+@admin
+def ver_reporte():
+    return jsonify(emails=get_cfg("reporte_emails"), activo=get_cfg("reporte_activo") == "1",
+                   smtp=smtp_ok(), ultimo=get_cfg("reporte_ultimo"))
+
+
+@app.put("/api/reporte")
+@admin
+def guardar_reporte():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        abort(400, "Se esperaba JSON")
+    activo = data.get("activo") in (True, 1, "1")
+    texto = str(data.get("emails", "")).strip()
+    try:
+        emails = ", ".join(correos_validos(texto)) if texto or activo else ""
+    except ValueError:
+        abort(400, "Escribe uno o más correos válidos (máximo 5), separados por coma")
+    set_cfg("reporte_emails", emails)
+    set_cfg("reporte_activo", "1" if activo else "0")
+    db().commit()
+    return jsonify(ok=True)
+
+
+@app.post("/api/reporte/prueba")
+@admin
+def reporte_prueba():
+    data = request.get_json(silent=True) or {}
+    try:
+        destinos = correos_validos(data.get("emails", ""))
+    except ValueError:
+        abort(400, "Escribe uno o más correos válidos (máximo 5), separados por coma")
+    if not smtp_ok():
+        abort(400, "Falta configurar el servidor de correo (SMTP_HOST, SMTP_USER y SMTP_PASSWORD) en el hosting")
+    try:
+        enviar_reporte(destinos)
+    except smtplib.SMTPAuthenticationError:
+        abort(400, "El servidor de correo rechazó el usuario o la contraseña (SMTP)")
+    except Exception as e:
+        abort(400, f"No se pudo enviar el correo ({type(e).__name__})")
+    return jsonify(ok=True)
+
+
+@app.get("/api/cron/reporte")
+def cron_reporte():
+    auth = request.headers.get("Authorization", "")
+    if not CRON_SECRET or not hmac.compare_digest(auth.encode(), f"Bearer {CRON_SECRET}".encode()):
+        return jsonify(error="No autorizado"), 401
+    if get_cfg("reporte_activo") != "1":
+        return jsonify(enviado=False, motivo="desactivado")
+    try:
+        destinos = correos_validos(get_cfg("reporte_emails"))
+    except ValueError:
+        return jsonify(enviado=False, motivo="sin correos")
+    if not smtp_ok():
+        return jsonify(error="SMTP sin configurar"), 500
+    try:
+        enviar_reporte(destinos)
+    except Exception as e:
+        return jsonify(error=type(e).__name__), 500
+    set_cfg("reporte_ultimo", db().execute("SELECT to_char(now() AT TIME ZONE 'America/Lima','YYYY-MM-DD HH24:MI') AS t").fetchone()["t"])
+    db().commit()
+    return jsonify(enviado=True)
 
 
 FALLOS = {}
