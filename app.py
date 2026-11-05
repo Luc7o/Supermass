@@ -35,6 +35,9 @@ ACT = {"ofertas": "activa", "productos": "activo", "sedes": "activa"}
 AJUSTES = ["facebook", "instagram", "tiktok", "whatsapp"]
 # Si defines ADMIN_HOST (ej. admin.tudominio.com), el panel solo se sirve en ese dominio
 ADMIN_HOST = os.environ.get("ADMIN_HOST", "").strip().lower()
+# Dirección del sitio público (para el enlace "Ver sitio" del panel). Si no la defines y el panel está en
+# admin.tudominio.com, se usa tudominio.com
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
 # Correo (reporte semanal): servidor SMTP, por ejemplo smtp.gmail.com con una contraseña de aplicación
 SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
@@ -194,9 +197,17 @@ def panel():
     return app.send_static_file("admin.html")
 
 
+def url_sitio():
+    if PUBLIC_URL:
+        return PUBLIC_URL
+    if ADMIN_HOST.startswith("admin."):
+        return "https://" + ADMIN_HOST[len("admin."):]
+    return "/"
+
+
 @app.get("/api/config")
 def config():
-    return jsonify(iconos=ICONOS, categorias=CATEGORIAS)
+    return jsonify(iconos=ICONOS, categorias=CATEGORIAS, sitio=url_sitio())
 
 
 @app.get("/api/<t>")
